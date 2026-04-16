@@ -1,1 +1,101 @@
+name: Sign Marketplace Offer Scripts
 
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag or reason for manual signing run'
+        required: false
+        default: 'manual'
+
+permissions:
+  id-token: write   # Required for OIDC federated credential authentication
+  contents: write   # Required to commit signed scripts back to the repo
+
+jobs:
+  sign-scripts:
+    name: Sign Pre and Post Deployment Scripts
+    runs-on: windows-latest  # Required - signtool.exe is Windows only
+
+    steps:
+      - name: Checkout Offer Repo
+        uses: actions/checkout@v4
+
+      - name: Azure Login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Sign Pre-Deployment Scripts
+        uses: azure/artifact-signing-action@v1
+        with:
+          endpoint: https://wus2.codesigning.azure.net/
+          signing-account-name: acs-frametypesol-prod-01
+          certificate-profile-name: cp-frametypesol-pub-01
+          files-folder: ${{ github.workspace }}\preDeploymentScripts
+          files-folder-filter: ps1
+          files-folder-recurse: true
+          file-digest: SHA256
+          timestamp-rfc3161: http://timestamp.acs.microsoft.com
+          timestamp-digest: SHA256
+
+      - name: Sign Post-Deployment Scripts
+        uses: azure/artifact-signing-action@v1
+        with:
+          endpoint: https://wus2.codesigning.azure.net/
+          signing-account-name: acs-frametypesol-prod-01
+          certificate-profile-name: cp-frametypesol-pub-01
+          files-folder: ${{ github.workspace }}\postDeploymentScripts
+          files-folder-filter: ps1
+          files-folder-recurse: true
+          file-digest: SHA256
+          timestamp-rfc3161: http://timestamp.acs.microsoft.com
+          timestamp-digest: SHA256
+
+      - name: Verify Signatures
+        shell: powershell
+        run: |
+          $scripts = Get-ChildItem -Path "${{ github.workspace }}" `
+            -Recurse -Filter "*.ps1"
+
+          $unsigned = @()
+          foreach ($script in $scripts) {
+            $sig = Get-AuthenticodeSignature -FilePath $script.FullName
+            if ($sig.Status -ne "Valid") {
+              $unsigned += $script.FullName
+            } else {
+              Write-Host "SIGNED: $($script.Name) - $($sig.SignerCertificate.Subject)" `
+                -ForegroundColor Green
+            }
+          }
+
+          if ($unsigned.Count -gt 0) {
+            Write-Host "UNSIGNED scripts detected:" -ForegroundColor Red
+            $unsigned | ForEach-Object { Write-Host "  $_" -ForegroundColor Red }
+            exit 1
+          }
+
+          Write-Host "All scripts signed successfully." -ForegroundColor Green
+
+      - name: Commit Signed Scripts
+        shell: powershell
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add preDeploymentScripts/*.ps1
+          git add postDeploymentScripts/*.ps1
+
+          $changes = git status --porcelain
+          if ($changes) {
+            $tag = "${{ github.ref_name }}"
+            git commit -m "chore: signed scripts for release $tag [skip ci]"
+            git push origin HEAD
+            Write-Host "Signed scripts committed and pushed." -ForegroundColor Green
+          } else {
+            Write-Host "No script changes to commit - already signed." -ForegroundColor DarkGray
+          }
