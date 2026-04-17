@@ -98,21 +98,75 @@ The following are required before deploying this offer from the Azure Marketplac
 | Requirement | Details |
 |---|---|
 | Azure Subscription | Contributor or Owner role on the target subscription |
-| Entra ID Permissions | Ability to create security groups and consent to application permissions |
-| Global Administrator or Conditional Access Administrator | Required for the post-deployment script to grant admin consent and configure CA policies |
-| PowerShell 7.0 or later | Required to run the post-deployment script |
-| Azure CLI 2.50.0 or later | Required to run the post-deployment script |
-| Outbound Internet Access | Required from the machine running the post-deployment script |
+| Entra ID Permissions — pre-deployment | Global Administrator, Groups Administrator, or User Administrator (to create security groups) |
+| Entra ID Permissions — post-deployment | Global Administrator, or both Application Administrator and Conditional Access Administrator |
+| PowerShell 7.0 or later | Required to run both the pre-deployment and post-deployment scripts |
+| Azure CLI 2.50.0 or later | Required to run both the pre-deployment and post-deployment scripts |
+| Outbound Internet Access | Required from the machine running both scripts |
 
-> **Note:** The offer deployment itself runs from the Azure Portal and has no local tooling requirements. PowerShell 7 and Azure CLI are only required for the post-deployment configuration script.
+> **Note:** The offer deployment itself runs entirely from the Azure Portal and has no local tooling requirements. PowerShell 7 and Azure CLI are only required for the pre-deployment and post-deployment scripts.
 
 ---
 
 ## Deployment Steps
 
-The offer deploys all Azure infrastructure automatically through the Marketplace wizard. After deployment completes, a short post-deployment script must be run to complete Entra ID configuration that cannot be performed within the ARM deployment.
+Deploying this offer involves four steps in sequence. Steps 1 and 3 require running a signed PowerShell script. Step 2 is the Marketplace wizard itself.
 
-### Step 1 — Deploy from Azure Marketplace
+```
+Step 1 — Run pre-deployment script   →   Step 2 — Deploy from Marketplace   →   Step 3 — Run post-deployment script   →   Step 4 — Add users and connect
+```
+
+---
+
+### Step 1 — Run the Pre-Deployment Script (REQUIRED BEFORE MARKETPLACE WIZARD)
+
+The Marketplace deployment wizard requires the **Object IDs of two Entra ID security groups** on the Identity configuration step. These groups must exist in your tenant before you begin the wizard.
+
+The pre-deployment script creates both groups (or retrieves them if they already exist) and outputs the Object IDs ready to paste into the wizard. It also writes an `avd-prerequisites.json` sidecar file to your current directory as an audit record.
+
+Download and run the script from PowerShell 7:
+
+```powershell
+# Download the script
+Invoke-WebRequest -Uri "https://raw.githubusercontent.com/frametypeSolutions/msMarketplaceOffer-azureVirtualDesktopPoc/main/preDeploymentScripts/avdPreDeployment.ps1" -OutFile ".\avdPreDeployment.ps1"
+
+# Unblock the downloaded file
+Unblock-File .\avdPreDeployment.ps1
+
+# Run the script
+.\avdPreDeployment.ps1
+```
+
+The script will prompt for:
+- **Environment code** — a short label used in group names and resource names (e.g. `dev`, `prod`)
+- **Azure region** — the region you intend to deploy to (e.g. `westus2`)
+
+On completion, the script displays a summary box similar to:
+
+```
+╔══════════════════════════════════════════════════════════════════╗
+║                  ✔  Prerequisites Complete                      ║
+╠══════════════════════════════════════════════════════════════════╣
+║  Paste these values into the AVD Marketplace deployment wizard  ║
+╠══════════════════════════════════════════════════════════════════╣
+║                                                                  ║
+║  AVD Users Group Object ID                                       ║
+║  xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx                            ║
+║                                                                  ║
+║  AVD Admins Group Object ID                                      ║
+║  xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx                            ║
+╚══════════════════════════════════════════════════════════════════╝
+```
+
+Copy both Object IDs — you will need them in the next step.
+
+> **Permissions required:** The account running this script must hold one of **Global Administrator**, **Groups Administrator**, or **User Administrator** in Entra ID.
+
+> **Idempotent:** If the groups already exist, the script retrieves and reuses them rather than creating duplicates. It is safe to run multiple times.
+
+---
+
+### Step 2 — Deploy from Azure Marketplace
 
 1. Locate the offer in the [Azure Marketplace](https://azuremarketplace.microsoft.com/en-us/marketplace/apps?search=frametype&page=1)
 2. Click **Get It Now** and follow the deployment wizard
@@ -120,17 +174,21 @@ The offer deploys all Azure infrastructure automatically through the Marketplace
    - **Basics** — Subscription, resource group, region, environment code
    - **Network** — VNet CIDR range
    - **Compute** — Session host count and VM size
-   - **Identity** — Entra ID group object IDs for AVD Users and Admins
+   - **Identity** — Paste the two Entra ID group Object IDs from Step 1
    - **Review + Create** — Validate and deploy
 4. Deployment typically completes in 20–30 minutes
 
-### Step 2 — Run the Post-Deployment Script
+---
 
-After the Marketplace deployment completes, run the post-deployment script to:
+### Step 3 — Run the Post-Deployment Script (REQUIRED AFTER MARKETPLACE WIZARD)
 
-1. **Grant admin consent** for the Azure Files storage enterprise application (required for FSLogix Entra Kerberos authentication)
-2. **Exclude the storage application from MFA Conditional Access policies** (required for FSLogix to mount the profile share at session startup)
-3. **Associate the AVD Scaling Plan with the Host Pool** (deferred from ARM deployment due to RBAC propagation timing)
+After the Marketplace deployment completes, run the post-deployment script to complete three steps that cannot be performed within the ARM deployment:
+
+1. **Grant admin consent** for the Azure Files storage enterprise application — required for FSLogix Entra Kerberos authentication
+2. **Exclude the storage application from MFA Conditional Access policies** — required for FSLogix to mount the profile share at session startup, before the user's MFA state is established
+3. **Associate the AVD Scaling Plan with the Host Pool** — deferred from ARM deployment due to RBAC propagation timing
+
+> **FSLogix will not function until Steps 1 and 2 of this script complete successfully.**
 
 Download and run the script from PowerShell 7:
 
@@ -149,16 +207,16 @@ The script auto-discovers all deployed resources based on the environment code a
 
 > **Permissions required:** The account running this script must hold **Global Administrator** or both **Application Administrator** and **Conditional Access Administrator** roles in Entra ID.
 
-### Step 3 — Add Users
+---
 
-Add user accounts to the Entra ID security groups created during deployment:
+### Step 4 — Add Users and Connect
+
+Add user accounts to the Entra ID security groups created by the pre-deployment script:
 
 - **AVD Users group** — Standard users who will access virtual desktops
 - **AVD Admins group** — Administrators who need elevated access to session hosts
 
 Users must be assigned a valid Microsoft 365 or Windows license that includes AVD access rights.
-
-### Step 4 — Connect
 
 Users can connect to their virtual desktop using:
 
@@ -237,6 +295,20 @@ The scaling plan is associated with the host pool by the post-deployment script.
 ---
 
 ## Troubleshooting
+
+### Pre-Deployment Script: Insufficient Role
+
+**Symptom:** Script exits with `The signed-in account does not hold a required Entra ID role.`
+
+**Resolution:** The account running the pre-deployment script must hold one of **Global Administrator**, **Groups Administrator**, or **User Administrator** in Entra ID. Ask your tenant administrator to assign one of these roles, then re-run the script. The script is idempotent — if groups were partially created, it will find and reuse them.
+
+### Marketplace Wizard: Object ID Fields
+
+**Symptom:** Unsure which Object IDs to paste into the Identity step of the wizard.
+
+**Resolution:** Run the pre-deployment script — it outputs the exact values to paste and also writes them to `avd-prerequisites.json` in the current directory for reference. The two fields in the wizard correspond to the **AVD Users Group Object ID** and **AVD Admins Group Object ID** shown in the script's completion summary.
+
+---
 
 ### FSLogix Profile Does Not Mount
 
