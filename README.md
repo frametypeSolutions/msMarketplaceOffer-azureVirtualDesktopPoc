@@ -16,7 +16,7 @@ Key outcomes this offer delivers:
 
 2. **Persistent User Profiles:** FSLogix profile containers are stored on Azure Files using Entra Kerberos authentication, providing fast, reliable profile roaming across sessions and session hosts.
 
-3. **Zero Trust Networking:** Session hosts have no public IP addresses. All outbound traffic routes through a NAT Gateway with a static public IP, enabling firewall allowlisting while keeping the environment private.
+3. **Zero Trust by Design:** Session hosts have no public IP addresses, all authentication uses modern Entra ID tokens, RBAC assignments follow least privilege, and full diagnostic logging is enabled. See the [Zero Trust Alignment](#zero-trust-alignment) section for a complete mapping to Microsoft's Zero Trust principles.
 
 4. **Automated Scaling:** An AVD Scaling Plan automatically starts and deallocates session hosts based on user demand, minimizing compute costs during off-peak hours.
 
@@ -226,7 +226,36 @@ Users can connect to their virtual desktop using:
 
 ---
 
-## Security Considerations
+## Zero Trust Alignment
+
+This offer is designed around Microsoft's Zero Trust security principles. Every architectural decision maps to one or more of the three core principles: **Verify Explicitly**, **Use Least Privilege**, and **Assume Breach**.
+
+| Principle | Implementation |
+|---|---|
+| **Verify Explicitly** | Session hosts are Entra ID joined — all authentication uses modern tokens, not NTLM or Kerberos from on-premises AD. FSLogix profile access uses Entra Kerberos tickets issued by Entra ID directly. MFA Conditional Access policies remain in effect for all user access — only the Azure Files storage application is excluded, and only because FSLogix must mount the profile share before the user's MFA state is established at session startup. |
+| **Use Least Privilege** | RBAC assignments are scoped to the minimum required level. Users receive `Desktop Virtualization User` and `Virtual Machine User Login` only. Session host managed identities receive `Storage File Data SMB Share Contributor` on the storage account only — not at subscription or resource group scope. The AVD service principal receives `Desktop Virtualization Power On Off Contributor` for scaling only. No standing Owner or Contributor assignments are made to user accounts by the offer. |
+| **Assume Breach** | Session hosts have no public IP addresses — there are no inbound network paths to exploit. All user connectivity uses the AVD reverse-connect transport (port 443 outbound only). Outbound traffic routes through a NAT Gateway with a static public IP, enabling downstream firewall allowlisting. Azure Monitor Agent and Log Analytics capture connection events, session host health, and FSLogix operational events for detection and response. |
+
+### Zero Trust and Networking
+
+The networking architecture enforces Zero Trust at the transport layer:
+
+- **No RDP exposure** — port 3389 is never opened. The AVD reverse-connect gateway brokers all sessions over HTTPS.
+- **Private session host NICs** — no public IP is assigned to any VM network interface.
+- **Deterministic egress** — the NAT Gateway provides a single, static outbound IP that can be allowlisted in downstream firewalls or NSGs.
+- **Subnet segmentation** — the AVD session host subnet (`azAvdSubnet`), profile subnet (`AzProfileSubnet`), and general subnet (`default`) are isolated within the VNet, supporting future NSG-based east-west traffic control.
+
+### Zero Trust and Identity
+
+- **No hybrid dependency** — there is no requirement for on-premises AD, AADDS, or VPN/ExpressRoute connectivity. The attack surface of legacy identity infrastructure is eliminated entirely.
+- **Cloud-only device trust** — session hosts register as Entra ID devices. Device compliance policies and Conditional Access device filters can be applied without hybrid join.
+- **Group-based access control** — all AVD access is governed through Entra ID security groups. Adding or removing a user from a group immediately grants or revokes desktop access without touching RBAC assignments.
+
+For Microsoft's full Zero Trust guidance for AVD, refer to: [Zero Trust guidance for Azure Virtual Desktop](https://learn.microsoft.com/en-us/security/zero-trust/azure-infrastructure-avd)
+
+---
+
+
 
 - **No public IP on session hosts:** All inbound connectivity uses AVD reverse-connect. No RDP ports are exposed.
 - **Entra ID joined:** No legacy domain join or NTLM authentication. All authentication uses modern Entra ID tokens.
