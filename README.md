@@ -34,7 +34,7 @@ This offer deploys a pooled AVD host pool with Windows 11 Enterprise Multi-Sessi
 
 ### Architecture Overview
 
-![AVD Architecture](docs/images/avdArchitecture.png)
+![AVD Architecture](docs/images/avdArchitecturalDiagram.png)
 
 The following Azure resources are deployed as a Marketplace managed application. All resources are provisioned into a managed resource group and governed by the offer.
 
