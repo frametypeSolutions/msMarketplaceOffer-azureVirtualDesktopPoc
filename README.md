@@ -6,27 +6,45 @@
 
 ## Azure Virtual Desktop — Cloud-Native Deployment
 
+<!-- consumed-by: web | field: purpose -->
 ### Purpose
 
-This offer deploys a fully configured, cloud-native Azure Virtual Desktop (AVD) environment directly from the Azure Marketplace. It is designed for organizations that want to deliver secure, scalable virtual desktops to their users without the complexity of on-premises Active Directory or hybrid identity infrastructure.
+This offer deploys a fully configured, cloud-native Azure Virtual Desktop (AVD) proof of concept (PoC) environment directly into your Azure subscription in under an hour. No hybrid Active Directory, no domain controllers, no days of manual configuration. Your environment is production-aligned from Day 1, with no orchestration platform required.
 
+This offer walks you through a guided deployment experience that deploys the full AVD control plane, Windows 11 session hosts, FSLogix profile containers, Zero Trust networking, least-privilege role assignments, and Azure Monitor diagnostics. Every resource is named and tagged to Cloud Adoption Framework (CAF) conventions out of the box.
+
+**Who This Offer Is For**
+
+- **IT decision makers and architects** evaluating a cloud-only AVD deployment model who want a fully functional, framework-aligned environment before committing to production.
+- **Microsoft partners** delivering AVD engagements who need a repeatable PoC baseline already aligned to the AVD Advanced Specialization audit requirements.
+- **Organizations moving away from on-premises Active Directory or legacy VDI solutions** who need an AVD deployment that works entirely in the cloud without legacy domain dependencies.
+
+**The Problem This Solves**
+
+Most AVD deployment guides assume a hybrid identity model: Active Directory Domain Services on-premises or Azure AD Domain Services in the cloud. For organizations that are cloud-only, or actively eliminating AD dependencies, those approaches introduce unnecessary complexity, cost, and attack surface.
+
+Standing up a cloud-native AVD environment correctly, with identity-based storage access, Zero Trust networking, FSLogix profile containers (user profile management software that eliminates profile bloat and login delays), and full monitoring, requires deep expertise across multiple Azure service areas. This offer eliminates that complexity in a single guided deployment.
+
+<!-- consumed-by: web | field: outcomes -->
 Key outcomes this offer delivers:
 
 1. **Cloud-Only Identity:** Session hosts are joined directly to Microsoft Entra ID — no domain controllers, no Azure AD Domain Services, and no hybrid AD infrastructure required.
-
-2. **Persistent User Profiles:** FSLogix profile containers are stored on Azure Files using Entra Kerberos authentication, providing fast, reliable profile roaming across sessions and session hosts.
-
-3. **Zero Trust by Design:** Session hosts have no public IP addresses, all authentication uses modern Entra ID tokens, RBAC assignments follow least privilege, and full diagnostic logging is enabled. See the [Zero Trust Alignment](#zero-trust-alignment) section for a complete mapping to Microsoft's Zero Trust principles.
-
-4. **Automated Scaling:** An AVD Scaling Plan automatically starts and deallocates session hosts based on user demand, minimizing compute costs during off-peak hours.
-
+2. **Persistent User Profiles:** FSLogix profile containers stored on Azure Files using Entra Kerberos authentication provide fast, reliable profile roaming without legacy Kerberos infrastructure.
+3. **Zero Trust by Design:** No public IP addresses on session hosts, modern Entra ID authentication, least-privilege RBAC, and full diagnostic logging. See the [Zero Trust Alignment](#zero-trust-alignment) section for a complete principle mapping.
+4. **Automated Scaling:** An AVD Scaling Plan starts and deallocates session hosts based on user demand, minimizing compute costs during off-peak hours.
 5. **Built-in Monitoring:** Azure Monitor Agent and Log Analytics provide AVD Insights, connection diagnostics, and session host health monitoring out of the box.
+6. **Built on Azure Verified Modules (AVM):** Infrastructure is authored using AVM, Microsoft's curated library of pre-validated Bicep components, ensuring WAF-aligned defaults and CAF-compliant resource configuration out of the box.
 
-6. **Security by Default:** RBAC assignments, Conditional Access MFA exclusions, and Entra ID group-based access control are configured as part of the deployment.
+**From PoC to Production**
 
+The environment is a validated starting point, not a throwaway. Partners use it to demonstrate cloud-native AVD to customers during evaluation, establish a baseline for migration planning, and accelerate the path to a production deployment. frameType Solutions engages with customers throughout the PoC and beyond, guiding them from initial deployment to production readiness.
+
+For detailed deployment instructions and configuration options, visit our [product page](https://frametype.solutions/marketplace/avd) or refer to the [frameType GitHub Repository](https://github.com/frametypeSolutions/msMarketplaceOffer-azureVirtualDesktopPoc).
+
+<!-- consumed-by: web | field: scope -->
 ### Scope
 
-This offer deploys a pooled AVD host pool with Windows 11 Enterprise Multi-Session session hosts, suitable for knowledge workers sharing virtual desktops. It is a Proof of Concept configuration designed to be extended to production scale. It does not include hybrid domain join, custom images, or ExpressRoute/VPN connectivity.
+This offer deploys a pooled AVD host pool with Windows 11 Enterprise Multi-Session session hosts, suitable for knowledge workers sharing virtual desktops. It is a proof of concept (PoC) configuration designed to be extended to production scale. It does not include hybrid domain join, custom images, or ExpressRoute/VPN connectivity.
 
 ---
 
